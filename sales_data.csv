@@ -1,0 +1,21 @@
+product,price,quantity,date,region
+Pink Morsels,$3.00,100,01-01-2021,north
+Pink Morsels,$3.00,110,02-01-2021,north
+Pink Morsels,$3.00,95,03-01-2021,east
+Pink Morsels,$3.00,105,04-01-2021,east
+Pink Morsels,$3.00,120,05-01-2021,west
+Pink Morsels,$3.00,115,06-01-2021,north
+Pink Morsels,$3.00,100,07-01-2021,east
+Pink Morsels,$3.00,110,08-01-2021,north
+Pink Morsels,$3.00,105,09-01-2021,north
+Pink Morsels,$3.00,100,10-01-2021,west
+Pink Morsels,$5.00,80,11-01-2021,east
+Pink Morsels,$5.00,85,12-01-2021,west
+Pink Morsels,$5.00,75,13-01-2021,east
+Pink Morsels,$5.00,90,14-01-2021,east
+Pink Morsels,$5.00,95,15-01-2021,east
+Pink Morsels,$5.00,88,16-01-2021,east
+Pink Morsels,$5.00,82,17-01-2021,east
+Pink Morsels,$5.00,85,18-01-2021,south
+Pink Morsels,$5.00,80,19-01-2021,west
+Pink Morsels,$5.00,90,20-01-2021,west

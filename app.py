@@ -1,86 +1,136 @@
 import pandas as pd
-from dash import Dash, html, dcc
 import plotly.express as px
-import glob
+from dash import Dash, html, dcc
 
-# 1. Load all CSV files
-file_list = glob.glob("data/*.csv")
+# =========================
+# 1. Load and Prepare Data
+# =========================
+def load_data(file_path):
+    df = pd.read_csv(file_path)
 
-if not file_list:
-    print("ERROR: No CSV files found in the 'data/' folder!")
-    exit()
+    # Normalize column names
+    df.columns = [col.lower() for col in df.columns]
 
-df_list = [pd.read_csv(file) for file in file_list]
-df = pd.concat(df_list, ignore_index=True)
+    # Filter for Pink Morsels
+    df = df[df['product'].str.lower().str.strip() == 'pink morsels']
 
-print(f"Files loaded: {file_list}")
-print(f"Initial rows: {len(df)}")
+    # Convert date
+    df['date'] = pd.to_datetime(df['date'])
 
-# 2. Robust Cleaning Logic
-# Clean price: Remove '$' and ',' then convert to numeric
-df["price"] = (
-    df["price"]
-    .astype(str)
-    .str.replace(r'[$,]', '', regex=True)
-)
-df["price"] = pd.to_numeric(df["price"], errors="coerce")
+    # Clean and convert price
+    df['price'] = (
+        df['price']
+        .astype(str)
+        .str.replace(r'[\$,]', '', regex=True)
+        .astype(float)
+    )
 
-# Clean quantity: Convert to numeric, turn errors to NaN
-df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce")
+    # Convert quantity
+    df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce')
 
-# Convert date: Using dayfirst=True handles DD/MM/YYYY formats common in retail data
-df["date"] = pd.to_datetime(df["date"], errors="coerce", dayfirst=True)
+    # Drop bad rows
+    df = df.dropna(subset=['price', 'quantity'])
 
-# --- DIAGNOSTIC CHECK ---
-print("\n--- Cleaning Diagnostics ---")
-print("Missing values per column before dropping:")
-print(df[["date", "price", "quantity"]].isna().sum())
-# -------------------------
+    # Calculate total sales
+    df['sales'] = df['price'] * df['quantity']
 
-# 3. Drop bad rows and create total_sales
-df = df.dropna(subset=["date", "price", "quantity"])
-df["total_sales"] = df["price"] * df["quantity"]
+    # Aggregate daily sales
+    df = (
+        df.groupby('date', as_index=False)['sales']
+        .sum()
+        .sort_values('date')
+    )
 
-print(f"\nRows remaining after cleaning: {len(df)}")
+    return df
 
-if len(df) == 0:
-    print("CRITICAL: All rows were dropped. Check the column formatting in your CSVs.")
-    exit()
 
-# 4. Aggregate Data for Visualization
-sales_by_date = (
-    df.groupby("date", as_index=False)["total_sales"]
-    .sum()
-    .sort_values("date")
-)
+# =========================
+# 2. Load Dataset
+# =========================
+DATA_PATH = "sales_data.csv"
 
-print(f"Total sales sum: {df['total_sales'].sum():,.2f}")
-print(f"Unique dates: {df['date'].nunique()}")
+try:
+    processed_df = load_data(DATA_PATH)
+except FileNotFoundError:
+    print(f"File {DATA_PATH} not found. Using placeholder data.")
+    processed_df = pd.DataFrame({
+        'date': pd.date_range(start='2020-09-01', end='2021-05-01', freq='D'),
+        'sales': [100 + (i * 0.5) for i in range(243)]
+    })
 
-# 5. Dash App Setup
-app = Dash(__name__)
 
-# Create the Line Chart
+# =========================
+# 3. Create Visualization
+# =========================
 fig = px.line(
-    sales_by_date,
+    processed_df,
     x="date",
-    y="total_sales",
-    title="Daily Total Sales Trend",
-    labels={"date": "Date", "total_sales": "Total Sales ($)"},
-    markers=True,
+    y="sales",
+    title="Pink Morsel Sales Trend (Before vs. After Price Increase)",
+    labels={'sales': 'Total Sales ($)', 'date': 'Date'}
+)
+
+# Vertical line (STRING to avoid Pandas bug)
+fig.add_vline(
+    x="2021-01-15",
+    line_dash="dash",
+    line_color="red"
+)
+
+# Annotation (robust workaround)
+fig.add_annotation(
+    x="2021-01-15",
+    y=processed_df['sales'].max(),
+    text="Price Increase (Jan 15)",
+    showarrow=True,
+    arrowhead=1,
+    yshift=10
+)
+
+fig.update_layout(
+    yaxis_tickprefix="$",
+    hovermode="x unified",
     template="plotly_white"
 )
 
-app.layout = html.Div([
-    html.H1("Quantium Sales Dashboard", style={'textAlign': 'center', 'fontFamily': 'sans-serif'}),
-    
-    html.Div([
-        html.P(f"Total Data Points: {len(df)}"),
-        html.P(f"Date Range: {sales_by_date['date'].min().date()} to {sales_by_date['date'].max().date()}")
-    ], style={'padding': '20px', 'backgroundColor': '#f9f9f9', 'borderRadius': '10px', 'marginBottom': '20px'}),
 
-    dcc.Graph(figure=fig)
-])
+# =========================
+# 4. Build Dash App
+# =========================
+app = Dash(__name__)
 
-if __name__ == "__main__":
+app.layout = html.Div(
+    style={'fontFamily': 'Arial, sans-serif', 'padding': '20px'},
+    children=[
+
+        html.H1(
+            "Soul Foods: Pink Morsels Visualizer",
+            style={'textAlign': 'center', 'color': '#2c3e50'}
+        ),
+
+        html.Div([
+            html.P(f"Total Data Points: {len(processed_df)}"),
+            html.P(
+                f"Date Range: "
+                f"{processed_df['date'].min().date()} "
+                f"to {processed_df['date'].max().date()}"
+            )
+        ], style={'marginBottom': '20px', 'color': '#7f8c8d'}),
+
+        dcc.Graph(
+            id='sales-line-chart',
+            figure=fig
+        ),
+
+        html.Footer(
+            "Soul Foods Data Analytics - 2026",
+            style={'marginTop': '50px', 'fontSize': '12px'}
+        )
+    ]
+)
+
+# =========================
+# 5. Run Server
+# =========================
+if __name__ == '__main__':
     app.run(debug=True)
